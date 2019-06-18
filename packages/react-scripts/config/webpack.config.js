@@ -37,6 +37,8 @@ const typescriptFormatter = require('react-dev-utils/typescriptFormatter');
 const getCacheIdentifier = require('react-dev-utils/getCacheIdentifier');
 // @remove-on-eject-end
 const postcssNormalize = require('postcss-normalize');
+const SentryWebpackPlugin = require('@sentry/webpack-plugin');
+const FlowWebpackPlugin = require('flow-webpack-plugin');
 
 // Source maps are resource heavy and can cause out of memory issue for large source files.
 const shouldUseSourceMap = process.env.GENERATE_SOURCEMAP !== 'false';
@@ -322,8 +324,8 @@ module.exports = function(webpackEnv) {
                 baseConfig: {
                   extends: [require.resolve('eslint-config-react-app')],
                 },
-                ignore: false,
-                useEslintrc: false,
+                ignore: true,
+                useEslintrc: true,
                 // @remove-on-eject-end
               },
               loader: require.resolve('eslint-loader'),
@@ -360,7 +362,10 @@ module.exports = function(webpackEnv) {
                 // @remove-on-eject-begin
                 babelrc: false,
                 configFile: false,
-                presets: [require.resolve('babel-preset-react-app')],
+                presets: [
+                  require.resolve('babel-preset-react-app'),
+                  '@babel/preset-flow',
+                ],
                 // Make sure we have a unique cache identifier, erring on the
                 // side of caution.
                 // We remove this when the user ejects because the default
@@ -379,6 +384,16 @@ module.exports = function(webpackEnv) {
                 ),
                 // @remove-on-eject-end
                 plugins: [
+                  [require.resolve('babel-plugin-idx')],
+                  [
+                    require.resolve('babel-plugin-module-resolver'),
+                    {
+                      root: [paths.appSrc],
+                      alias: {
+                        '@': paths.appSrc,
+                      },
+                    },
+                  ],
                   [
                     require.resolve('babel-plugin-named-asset-import'),
                     {
@@ -523,6 +538,16 @@ module.exports = function(webpackEnv) {
       ],
     },
     plugins: [
+      isEnvProduction &&
+        new SentryWebpackPlugin({
+          include: '.',
+          ext: ['js', 'jsx', 'map', 'jsbundle', 'bundle'],
+          ignoreFile: '.sentrycliignore',
+          ignore: ['node_modules'],
+          configFile: 'sentry.properties',
+          dryRun: !process.env.SENTRY_AUTH_TOKEN,
+          release: process.env.SENTRY_RELEASE,
+        }),
       // Generates an `index.html` file with the <script> injected.
       new HtmlWebpackPlugin(
         Object.assign(
@@ -656,6 +681,7 @@ module.exports = function(webpackEnv) {
           // The formatter is invoked directly in WebpackDevServerUtils during development
           formatter: isEnvProduction ? typescriptFormatter : undefined,
         }),
+      isEnvDevelopment && new FlowWebpackPlugin(),
     ].filter(Boolean),
     // Some libraries import Node modules but don't use them in the browser.
     // Tell Webpack to provide empty mocks for them so importing them works.
