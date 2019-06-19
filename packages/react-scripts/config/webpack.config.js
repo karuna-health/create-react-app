@@ -39,12 +39,13 @@ const getCacheIdentifier = require('react-dev-utils/getCacheIdentifier');
 const postcssNormalize = require('postcss-normalize');
 const SentryWebpackPlugin = require('@sentry/webpack-plugin');
 const FlowWebpackPlugin = require('flow-webpack-plugin');
+const SriPlugin = require('webpack-subresource-integrity');
 
 // Source maps are resource heavy and can cause out of memory issue for large source files.
 const shouldUseSourceMap = process.env.GENERATE_SOURCEMAP !== 'false';
 // Some apps do not need the benefits of saving a web request, so not inlining the chunk
 // makes for a smoother build process.
-const shouldInlineRuntimeChunk = process.env.INLINE_RUNTIME_CHUNK !== 'false';
+const shouldInlineRuntimeChunk = false;
 
 // Check if TypeScript is setup
 const useTypeScript = fs.existsSync(paths.appTsConfig);
@@ -154,12 +155,14 @@ module.exports = function(webpackEnv) {
       isEnvDevelopment &&
         require.resolve('react-dev-utils/webpackHotDevClient'),
       // Finally, this is your app's code:
+      paths.appVendorJs,
       paths.appIndexJs,
       // We include the app code last so that if there is a runtime error during
       // initialization, it doesn't blow up the WebpackDevServer client, and
       // changing JS code would still trigger a refresh.
     ].filter(Boolean),
     output: {
+      crossOriginLoading: 'anonymous',
       // The build folder.
       path: isEnvProduction ? paths.appBuild : undefined,
       // Add /* filename */ comments to generated require()s in the output.
@@ -548,6 +551,10 @@ module.exports = function(webpackEnv) {
           dryRun: !process.env.SENTRY_AUTH_TOKEN,
           release: process.env.SENTRY_RELEASE,
         }),
+      new SriPlugin({
+        hashFuncNames: ['sha256', 'sha384'],
+        enabled: isEnvProduction,
+      }),
       // Generates an `index.html` file with the <script> injected.
       new HtmlWebpackPlugin(
         Object.assign(
@@ -555,6 +562,7 @@ module.exports = function(webpackEnv) {
           {
             inject: true,
             template: paths.appHtml,
+            hash: true,
           },
           isEnvProduction
             ? {
